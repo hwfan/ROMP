@@ -10,7 +10,7 @@ chumpy
 trimesh
 pyrender
 shyaml
-PyYAML>=5.1.2
+PyYAML
 numpy-quaternion
 open3d
 pygame

@@ -1,9 +1,9 @@
+import open3d as o3d
 import pickle
 import time
 import cv2
 import keyboard
 import numpy as np
-import open3d as o3d
 import pygame
 from pygame.locals import *
 from transforms3d.axangles import axangle2mat

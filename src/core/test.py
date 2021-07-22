@@ -1,4 +1,7 @@
 from base import *
+import os
+from tqdm import tqdm
+import joblib
 
 class Demo(Base):
     def __init__(self):
@@ -11,7 +14,7 @@ class Demo(Base):
         self.demo_dir = os.path.join(config.project_dir, 'demo')
         self.vis_size = [1024,1024,3]#[1920,1080]
         if not args().webcam and '-1' not in self.gpu:
-            self.visualizer = Visualizer(resolution=self.vis_size, input_size=self.input_size,with_renderer=True)
+            self.visualizer = Visualizer(resolution=self.vis_size, input_size=self.input_size,with_renderer=False)
         else:
             self.save_visualization_on_img = False
         if self.save_mesh:
@@ -91,42 +94,65 @@ class Demo(Base):
         outputs = self.net_forward(meta_data, cfg=self.demo_cfg)
         return outputs
 
-    def process_video(self, video_file_path=None):
+    def process_video(self, video_dir=None):
         import keyboard
         from utils.demo_utils import OpenCVCapture, frames2video
-        capture = OpenCVCapture(video_file_path)
-        video_length = int(capture.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_basename = get_video_bn(video_file_path)
-        print('Processing {}, saving to {}'.format(video_file_path, self.output_dir))
-        os.makedirs(self.output_dir, exist_ok=True)
-        if not os.path.isdir(self.output_dir):
-            self.output_dir = video_file_path.replace(os.path.basename(video_file_path),'')
 
-        results, result_frames = {}, []
-        for frame_id in range(video_length):
-            print('Processing video {}/{}'.format(frame_id, video_length))
-            frame = capture.read()
-            with torch.no_grad():
-                outputs = self.single_image_forward(frame)
-            vis_dict = {'image_org': outputs['meta_data']['image_org'].cpu()}
-            img_paths = [str(frame_id) for _ in range(1)]
-            single_batch_results = self.reorganize_results(outputs,img_paths,outputs['reorganize_idx'].cpu().numpy())
-            results.update(single_batch_results)
-            vis_eval_results = self.visualizer.visulize_result_onorg(outputs['verts'], outputs['verts_camed'], vis_dict, reorganize_idx=outputs['reorganize_idx'].cpu().numpy())
-            result_frames.append(vis_eval_results[0])
-            outputs['meta_data']['imgpath'] = img_paths
-            if self.save_mesh:
-                save_meshes(outputs['reorganize_idx'].cpu().numpy(), outputs, self.output_dir, self.smpl_faces)
-        
-        if self.save_dict_results:
-            save_dict_path = os.path.join(self.output_dir, video_basename+'_results.npz')
-            print('Saving parameter results to {}'.format(save_dict_path))
-            np.savez(save_dict_path, results=results)
+        files = os.listdir(video_dir)
+        files = [os.path.join(video_dir, file) for file in files]
+        proc_id = int(os.environ['SLURM_PROCID'])
+        ntasks = int(os.environ['SLURM_NTASKS'])
+        ntasks_per_node = int(os.environ['SLURM_NTASKS_PER_NODE'])
 
-        if self.save_video_results:
-            video_save_name = os.path.join(self.output_dir, video_basename+'_results.mp4')
-            print('Writing results to {}'.format(video_save_name))
-            frames2video(result_frames, video_save_name, fps=args().fps_save)
+        task_lists = np.array_split(np.arange(len(files)), ntasks)
+        task_list = task_lists[proc_id]
+
+        for video_idx_idx, video_idx in enumerate(sorted(list(task_list))):
+            print("Preprocessing proc_id {}, {} / {}".format(proc_id, video_idx_idx, len(task_list)))
+            video_file_path = files[video_idx]
+
+            capture = OpenCVCapture(video_file_path)
+            video_length = int(capture.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            video_basename = get_video_bn(video_file_path)
+            # print('Processing {}, saving to {}'.format(video_file_path, self.output_dir))
+            os.makedirs(self.output_dir, exist_ok=True)
+            if not os.path.isdir(self.output_dir):
+                self.output_dir = video_file_path.replace(os.path.basename(video_file_path),'')
+
+            results, result_frames = {}, []
+            verts_camed = []
+            reorganize_idxs = []
+            for frame_id in tqdm(range(video_length), desc='proc {}, {} / {}'.format(proc_id, video_idx_idx, len(task_list))):
+                # print('Processing video {}/{}'.format(frame_id, video_length))
+                frame = capture.read()
+                with torch.no_grad():
+                    outputs = self.single_image_forward(frame)
+                # vis_dict = {'image_org': outputs['meta_data']['image_org'].cpu()}
+                # img_paths = [str(frame_id) for _ in range(1)]
+                # single_batch_results = self.reorganize_results(outputs,img_paths,outputs['reorganize_idx'].cpu().numpy())
+                # results.update(single_batch_results)
+
+                verts_camed.append(outputs['verts_camed'].detach().cpu())
+                reorganize_idxs.append(outputs['reorganize_idx'].cpu().numpy())
+
+                # vis_eval_results = self.visualizer.visulize_result_onorg(outputs['verts'], outputs['verts_camed'], vis_dict, reorganize_idx=outputs['reorganize_idx'].cpu().numpy())
+                # result_frames.append(vis_eval_results[0])
+                # outputs['meta_data']['imgpath'] = img_paths
+                # if self.save_mesh:
+                #     save_meshes(outputs['reorganize_idx'].cpu().numpy(), outputs, self.output_dir, self.smpl_faces)
+
+            vis_save = {"verts_camed": verts_camed, "reorganize_idxs": reorganize_idxs}
+            joblib.dump(vis_save, open(os.path.join(self.output_dir, video_basename+'_results.pkl'), "wb"))
+
+            # if self.save_dict_results:
+            #     save_dict_path = os.path.join(self.output_dir, video_basename+'_results.npz')
+            #     print('Saving parameter results to {}'.format(save_dict_path))
+            #     np.savez(save_dict_path, results=results)
+
+            # if self.save_video_results:
+            #     video_save_name = os.path.join(self.output_dir, video_basename+'_results.mp4')
+            #     print('Writing results to {}'.format(video_save_name))
+            #     frames2video(result_frames, video_save_name, fps=args().fps_save)
             
     def webcam_run_local(self, video_file_path=None):
         '''
@@ -233,4 +259,11 @@ def main():
             demo.run(demo_image_folder)
 
 if __name__ == '__main__':
+    proc_id = int(os.environ['SLURM_PROCID'])
+    ntasks = int(os.environ['SLURM_NTASKS'])
+    ntasks_per_node = int(os.environ['SLURM_NTASKS_PER_NODE'])
+    proc_id_per_node = proc_id % ntasks_per_node
+    old_env = os.environ['CUDA_VISIBLE_DEVICES']
+    os.environ['CUDA_VISIBLE_DEVICES'] = old_env.split(',')[proc_id_per_node]
+
     main()

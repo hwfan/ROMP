@@ -1,28 +1,19 @@
+#!/usr/bin/env bash
+# 1=exp_name, 2=gpus, 3=group_gpu, 4="other command"
+jobname=${1:-train_debug}
+gpu_num=${2:-1}
+group_gpu_num=${3:-1}
+suffix=${4:-""}
+nodes=$gpu_num
+gpus=$group_gpu_num
+partition=${5:-spring_scheduler}
+task_num=${6:-5}
 
-DEMO_SINGLE_MODE=1
-DEMO_VIDEO_MODE=0
-WEBCAM_MODE=0
-EVALUATION_MODE=0
-
-DEMO_SINGLE_CONFIGS='configs/single_image.yml'
-DEMO_VIDEO_CONFIGS='configs/video.yml'
-WEBCAM_CONFIGS='configs/webcam.yml'
-EVALUATION_CONFIGS='configs/eval_3dpw.yml'
-
-if [ "$DEMO_SINGLE_MODE" = 1 ]
-then
-    GPUS=$(cat $DEMO_SINGLE_CONFIGS | shyaml get-value ARGS.GPUS)
-    CUDA_VISIBLE_DEVICES=${GPUS} python core/test.py --gpu=${GPUS} --configs_yml=${DEMO_SINGLE_CONFIGS}
-elif [ "$DEMO_VIDEO_MODE" = 1 ]
-then
-    GPUS=$(cat $DEMO_VIDEO_CONFIGS | shyaml get-value ARGS.GPUS)
-    CUDA_VISIBLE_DEVICES=${GPUS} python -u core/test.py --gpu=${GPUS} --configs_yml=${DEMO_VIDEO_CONFIGS}
-elif [ "$WEBCAM_MODE" = 1 ]
-then
-    GPUS=$(cat $WEBCAM_CONFIGS | shyaml get-value ARGS.GPUS)
-    CUDA_VISIBLE_DEVICES=${GPUS} python -u core/test.py --gpu=${GPUS} --configs_yml=${WEBCAM_CONFIGS}
-elif [ "$EVALUATION_MODE" = 1 ]
-then
-    GPUS=$(cat $EVALUATION_CONFIGS | shyaml get-value ARGS.GPUS)
-    CUDA_VISIBLE_DEVICES=${GPUS} python -u core/benchmarks_evaluation.py --gpu=${GPUS} --configs_yml=${EVALUATION_CONFIGS}
-fi    
+spring.submit run --mpi=pmi2 -p $partition \
+    -n$nodes \
+    --gres=gpu:$gpus \
+    --ntasks-per-node=$gpus \
+    --cpus-per-task=$task_num \
+    --job-name=$jobname \
+    "python3 -u core/test.py --gpu=0 --configs_yml=configs/video.yml \
+    $suffix"

@@ -1,9 +1,9 @@
+# import open3d as o3d
 import cv2
 import keyboard
 import imageio
 import torch
 import numpy as np
-import open3d as o3d
 import pygame
 from pygame.locals import *
 from transforms3d.axangles import axangle2mat
@@ -23,7 +23,7 @@ from utils import save_obj
 
 def get_video_bn(video_file_path):
     return os.path.basename(video_file_path)\
-    .replace('.mp4', '').replace('.avi', '').replace('.webm', '').replace('.gif', '')
+    .replace('.mkv', '').replace('.mp4', '').replace('.avi', '').replace('.webm', '').replace('.gif', '')
 
 def save_meshes(reorganize_idx, outputs, output_dir, smpl_faces):
     vids_org = np.unique(reorganize_idx)
@@ -157,7 +157,7 @@ class Image_Reader:
         if self.current_num==len(self.image_list):
             self.current_num=0
         return np.flip(frame, -1).copy() # BGR to RGB
-
+'''
 class Open3d_visualizer(object):
     def __init__(self):
         self.view_mat = axangle2mat([1, 0, 0], np.pi) # align different coordinate systems
@@ -266,7 +266,7 @@ class Open3d_visualizer(object):
         else:
             mesh.paint_uniform_color(self.mesh_color)
         return mesh
-        
+'''
 
 def frames2video(images, video_name,fps=30):
     writer = imageio.get_writer(video_name, format='mp4', mode='I', fps=fps)

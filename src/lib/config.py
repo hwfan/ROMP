@@ -13,7 +13,7 @@ model_dir = os.path.join(project_dir,'models')
 trained_model_dir = os.path.join(project_dir,'trained_models')
 
 time_stamp = time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(int(round(time.time()*1000))/1000))
-yaml_timestamp = "configs/active_context_{}.yaml".format(time_stamp)
+yaml_timestamp = "configs/active_context_{}.yaml".format(os.environ['SLURM_PROCID'])
 
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description = 'ROMP: Monocular, One-stage, Regression of Multiple 3D People')
@@ -126,7 +126,7 @@ class ConfigContext(object):
         with open(self.yaml_filename, 'w') as f:
             d = self.parsed_args.__dict__
             yaml.dump(d, f)
-
+        
     def clean(self):
         if os.path.exists(self.yaml_filename):
             os.remove(self.yaml_filename)
@@ -134,6 +134,7 @@ class ConfigContext(object):
     def __exit__(self, exception_type, exception_value, traceback):
         # delete the yaml file
         self.clean()
+        pass
 
 def args():
     # have to pass something or it'll try and read stdin, it should get overwritten on file load
