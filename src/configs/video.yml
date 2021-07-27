@@ -17,8 +17,9 @@ ARGS:
  gmodel_path: '../trained_models/ROMP_hrnet32.pkl'
 
  video_or_frame: True
- input_video_path: '/mnt/lustre/fanhongwei1/VIBE/gather_videos' # None
- output_dir: '/mnt/lustrenew/fanhongwei1/romp_results'
+#  input_video_path: '/mnt/lustre/fanhongwei1/VIBE/gather_videos' # None
+ input_video_path: '/mnt/cache/fanhongwei1/videos_15min'
+ output_dir: '/mnt/lustre/fanhongwei1/ROMP/romp_params_results'
 #  input_video_path: '/mnt/lustre/fanhongwei1/VIBE/pseudo_input'
 #  output_dir: '/mnt/lustre/fanhongwei1/VIBE/pseudo_output_romp'
  webcam_mesh_color: 'ghostwhite'  #'LightCyan'

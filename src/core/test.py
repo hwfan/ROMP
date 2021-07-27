@@ -2,6 +2,8 @@ from base import *
 import os
 from tqdm import tqdm
 import joblib
+import time
+excluded_files = ['55Ihr6uVIDA.mp4', '5LrOQEt_XVM.mp4', '8nO5FFbIAog.mp4', '9HOMUW7QNFc.mp4', 'cWYJHb25EVs.mp4', 'dMH8L7mqCNI.mp4', 'KIy2a-nejxg.mp4', 'LrDT25hmApw.mp4', 'om_83F5VwTQ.mp4', 'Ov0za6Xb1LM.mp4', 'QD3L10bUnBo.mp4', 'uzPI7FcF79U.mp4', 'VRlpH1MbWUw.mp4', 'XF87VL5T0aA.mp4', 'z-fsLpGHq6o.mp4', '_mAfwH6i90E.mp4']
 
 class Demo(Base):
     def __init__(self):
@@ -99,7 +101,17 @@ class Demo(Base):
         from utils.demo_utils import OpenCVCapture, frames2video
 
         files = os.listdir(video_dir)
+        # files = sorted(list(set(files) - set(excluded_files)))
         files = [os.path.join(video_dir, file) for file in files]
+
+        # to_del = []
+        # for video_file_path in files:
+        #     video_basename = get_video_bn(video_file_path)
+        #     res_path = os.path.join(self.output_dir, video_basename+'_results.pkl')
+        #     if os.path.exists(res_path):
+        #         to_del.append(video_file_path)
+        # files = sorted(list(set(files) - set(to_del)))
+
         proc_id = int(os.environ['SLURM_PROCID'])
         ntasks = int(os.environ['SLURM_NTASKS'])
         ntasks_per_node = int(os.environ['SLURM_NTASKS_PER_NODE'])
@@ -120,20 +132,29 @@ class Demo(Base):
                 self.output_dir = video_file_path.replace(os.path.basename(video_file_path),'')
 
             results, result_frames = {}, []
-            verts_camed = []
-            reorganize_idxs = []
+            # verts_camed = []
+            # reorganize_idxs = []
             for frame_id in tqdm(range(video_length), desc='proc {}, {} / {}'.format(proc_id, video_idx_idx, len(task_list))):
                 # print('Processing video {}/{}'.format(frame_id, video_length))
                 frame = capture.read()
-                with torch.no_grad():
-                    outputs = self.single_image_forward(frame)
-                # vis_dict = {'image_org': outputs['meta_data']['image_org'].cpu()}
-                # img_paths = [str(frame_id) for _ in range(1)]
-                # single_batch_results = self.reorganize_results(outputs,img_paths,outputs['reorganize_idx'].cpu().numpy())
-                # results.update(single_batch_results)
+                try:
+                    with torch.no_grad():
+                        outputs = self.single_image_forward(frame)
+                except:
+                    # verts_camed.append(None)
+                    # reorganize_idxs.append(None)
+                    continue
 
-                verts_camed.append(outputs['verts_camed'].detach().cpu())
-                reorganize_idxs.append(outputs['reorganize_idx'].cpu().numpy())
+                # vis_dict = {'image_org': outputs['meta_data']['image_org'].cpu()}
+                img_paths = [str(frame_id) for _ in range(1)]
+                single_batch_results = self.reorganize_results(outputs,img_paths,outputs['reorganize_idx'].cpu().numpy())
+                results.update(single_batch_results)
+
+                '''
+                save vis results
+                '''
+                # verts_camed.append(outputs['verts_camed'].detach().cpu())
+                # reorganize_idxs.append(outputs['reorganize_idx'].cpu().numpy())
 
                 # vis_eval_results = self.visualizer.visulize_result_onorg(outputs['verts'], outputs['verts_camed'], vis_dict, reorganize_idx=outputs['reorganize_idx'].cpu().numpy())
                 # result_frames.append(vis_eval_results[0])
@@ -141,13 +162,13 @@ class Demo(Base):
                 # if self.save_mesh:
                 #     save_meshes(outputs['reorganize_idx'].cpu().numpy(), outputs, self.output_dir, self.smpl_faces)
 
-            vis_save = {"verts_camed": verts_camed, "reorganize_idxs": reorganize_idxs}
-            joblib.dump(vis_save, open(os.path.join(self.output_dir, video_basename+'_results.pkl'), "wb"))
+            # vis_save = {"verts_camed": verts_camed, "reorganize_idxs": reorganize_idxs}
+            # joblib.dump(vis_save, open(os.path.join(self.output_dir, video_basename+'_results.pkl'), "wb"))
 
             # if self.save_dict_results:
-            #     save_dict_path = os.path.join(self.output_dir, video_basename+'_results.npz')
-            #     print('Saving parameter results to {}'.format(save_dict_path))
-            #     np.savez(save_dict_path, results=results)
+            save_dict_path = os.path.join(self.output_dir, video_basename+'_results.npz')
+            print('Saving parameter results to {}'.format(save_dict_path))
+            np.savez(save_dict_path, results=results)
 
             # if self.save_video_results:
             #     video_save_name = os.path.join(self.output_dir, video_basename+'_results.mp4')
